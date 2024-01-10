@@ -10,4 +10,6 @@ public class CurrencyApplication {
 		SpringApplication.run(CurrencyApplication.class, args);
 	}
 
+	// Some commsdadasda
+
 }
