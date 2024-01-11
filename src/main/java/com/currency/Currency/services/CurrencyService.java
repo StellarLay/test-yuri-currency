@@ -1,0 +1,109 @@
+package com.currency.Currency.services;
+
+import com.currency.Currency.dto.CurrencyData;
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvException;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartUtils;
+import org.jfree.chart.JFreeChart;
+import org.jfree.data.category.DefaultCategoryDataset;
+import org.springframework.stereotype.Service;
+import org.springframework.ui.Model;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+@Service
+public class CurrencyService {
+
+    public List<CurrencyData> processCsv(MultipartFile file, Model model) {
+        try (Reader reader = new InputStreamReader(file.getInputStream())) {
+            CSVReader csvReader = new CSVReader(reader);
+            List<String[]> records = csvReader.readAll();
+
+            DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+            double maxUsdGain = Double.MIN_VALUE;
+            double maxUsdLoss = Double.MAX_VALUE;
+            double maxEurGain = Double.MIN_VALUE;
+            double maxEurLoss = Double.MAX_VALUE;
+
+            List<CurrencyData> currencyDataList = parseCSV(records);
+            for (CurrencyData data : currencyDataList) {
+                dataset.addValue(data.getUsd(), "USD", data.getDate().toString());
+                dataset.addValue(data.getEur(), "EUR", data.getDate().toString());
+
+                maxUsdGain = Math.max(maxUsdGain, data.getUsd());
+                maxUsdLoss = Math.min(maxUsdLoss, data.getUsd());
+                maxEurGain = Math.max(maxEurGain, data.getEur());
+                maxEurLoss = Math.min(maxEurLoss, data.getEur());
+            }
+
+            model.addAttribute("chart", generateChart(dataset, "Currency Exchange Rates"));
+            model.addAttribute("maxUsdGain", maxUsdGain);
+            model.addAttribute("maxUsdLoss", maxUsdLoss);
+            model.addAttribute("maxEurGain", maxEurGain);
+            model.addAttribute("maxEurLoss", maxEurLoss);
+
+            System.out.println(maxUsdGain);
+            System.out.println(maxUsdLoss);
+            System.out.println(maxEurGain);
+            System.out.println(maxEurLoss);
+            return currencyDataList;
+        } catch (IOException | CsvException e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    private String generateChart(DefaultCategoryDataset dataset, String title) {
+        JFreeChart lineChart = ChartFactory.createLineChart(
+                title,
+                "Date",
+                "Exchange Rate",
+                dataset
+        );
+
+        try {
+            File chartFile = new File("src/main/resources/static/images/chart.png");
+            ChartUtils.saveChartAsPNG(chartFile, lineChart, 1000, 800);
+            return chartFile.getName();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private List<CurrencyData> parseCSV (List < String[]>records){
+        List<CurrencyData> currencyDataList = new ArrayList<>();
+
+        for (int i = 1; i < records.size(); i++) {
+
+            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+            try {
+                String[] fields = records.get(i)[0].split(";");
+                LocalDate date = LocalDate.parse(fields[0], dateFormatter);
+                double usd = Double.parseDouble(fields[1]);
+                double eur = Double.parseDouble(fields[2]);
+
+                CurrencyData currencyData = new CurrencyData();
+                currencyData.setDate(date);
+                currencyData.setUsd(usd);
+                currencyData.setEur(eur);
+
+                currencyDataList.add(currencyData);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        return currencyDataList;
+    }
+}
